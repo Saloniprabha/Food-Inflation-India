@@ -1,0 +1,31 @@
+#Average CPI by category for the most recent year
+max_year = int(df_long["Year"].max())
+q_avg_by_cat = f"""
+SELECT Category, ROUND(AVG(CPI), 2) AS avg_cpi_{max_year}
+FROM food_cpi_long
+WHERE Year = {max_year}
+GROUP BY Category
+ORDER BY avg_cpi_{max_year} DESC;
+"""
+avg_by_cat_df = pd.read_sql(q_avg_by_cat, conn)
+
+#Year-over-Year % change ( last 12 months)
+q_yoy = f"""
+WITH yoy AS (
+  SELECT
+    Category,
+    Date,
+    CPI,
+    LAG(CPI, 12) OVER (PARTITION BY Category ORDER BY Date) AS cpi_12m_ago
+  FROM food_cpi_long
+)
+SELECT
+  Category,
+  Date,
+  ROUND(100.0 * (CPI - cpi_12m_ago) / NULLIF(cpi_12m_ago, 0), 2) AS yoy_percent
+FROM yoy
+WHERE Date >= DATE((SELECT MAX(Date) FROM food_cpi_long), '-365 day')
+ORDER BY Category, Date;
+"""
+yoy_df = pd.read_sql(q_yoy, conn)
+conn.close()
